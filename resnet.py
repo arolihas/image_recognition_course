@@ -74,3 +74,27 @@ class ResNetModel(object):
             preactivated3 = self.pre_activation(conv2, is_training)
             conv3 = self.conv_layer(preactivated3, filters*4, 1, 1)
             return conv3 + shortcut
+
+    def block_layer(self, inputs, filters, strides, num_blocks, is_training, index):
+        with tf.variable_scope('block_layer{}'.format(index)):
+            shortcut_filters = 4 * filters if self.bottleneck else filters
+            block_fn = self.bottleneck_block if self.bottleneck else self.regular_block
+            block_output = block_fn(inputs, filters, stridess, is_training, 0, shortcut_filters)
+            for i in range(1, num_blocks):
+                block_output = block_fn(block_output, filters, 1, is_training, i)
+            return block_output
+
+    def model_layers(self, inputs, is_training):
+        conv_init = self.conv_layer(inputs, self.filters_init, 7, 2, name='conv_init')
+        curr_layer = tf.layers.max_pooling2d(conv_init, 3, 2, padding='same', data_format=self.format, name='pool_init')
+        for i, num_blocks in enumerate(self.block_layer_sizes):
+            filters = self.filter_init * 2**i
+            strides = self.block_strides[i]
+            curr_layer = self.block_layer(curr_layer, filters, strides, num_blocks, is_training, i)
+        
+        preactivated_final = self.pre_activation(curr_layer, is_training)
+        filter_size = int(preactivated_final.shape[2])
+        avg_pool = tf.layers.average_pooling2d(preactivated_final, filter_size, 1, data_format=self.format)
+        final = tf.layers.flatten(avg_pool)
+
+        return tf.layers.dense(final, self.output_size, name='logits')
