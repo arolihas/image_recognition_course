@@ -24,3 +24,26 @@ class MNISTModel(object):
 
     def apply_dropout(dense, is_training):
         return tf.layers.dropout(dense, rate=0.4, training=is_training)
+
+    def run_model_setup(self, inputs, labels, is_training):
+        logits = self.model_layers(inputs, is_training)
+        
+        # Predictions
+        self.probs = tf.nn.softmax(logits, name='probs')
+        self.predictions = tf.argmax(self.probs, axis=-1, name='predictions')
+        class_labels = tf.argmax(labels, axis=-1)
+
+        #Accuracy 
+        is_correct = tf.cast(tf.equal(self.predictions, class_labels), tf.float32)
+        self.accuracy = tf.reduce_mean(is_correct)
+
+        #Training
+        if self.is_training:
+            labels_f = tf.cast(labels, tf.float32)
+            cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(labels=labels_f, logits=logits)
+            self.loss = tf.reduce_mean(cross_entropy)
+
+            adam = tf.train.AdamOptimizer()
+            self.train_op = adam.minimize(self.loss, global_step=self.global_step)
+
+
