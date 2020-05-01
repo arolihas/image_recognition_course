@@ -49,4 +49,21 @@ class SqueezeNetModel(object):
         fire_params2 = [(32, 128, 'fire3'), (32, 128, 'fire4')]
         multi_fire2 = self.multi_fire_module(pool2 , fire_params2)
         dropout1 = tf.layers.dropout(multi_fire2, rate=0.5, training=is_training)
+        
+        final = self.conv_layer(dropout1, self.output_size, [1,1], 'final')
+        avg_pool1 = tf.layer.average_pooling2d(final, [final.shape[1], final.shape[2]], 1) 
+        return tf.layers.flatten(avg_pool1, name='logits')
+
+    def run_model_setup(self, inputs, labels):
+        logits = self.model_layers(inputs, is_training)
+        self.probs = tf.nn.softmax(logits, name='probs')
+        self.predictions = tf.argmax(self.probs, axis=-1, name='predictions')
+        
+        is_correct = tf.cast(tf.equal(tf.cast(self.predictions, tf.int32), labels), tf.float32)
+        self.accuracy = tf.reduce_mean(is_correct)
+        cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels, logits)
+        
+        self.loss = tf.reduce_mnean(cross_entropy)
+        adam = tf.train.AdamOptimizer()
+        self.train_op = adam.minimize(self.loss, global_step=self.global_step)
 
